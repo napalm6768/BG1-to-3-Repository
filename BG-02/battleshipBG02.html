@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Battleship</title>
+<style>
+:root{--bg:#e9eff3;--fg:#10222f;--panel:#fbfdfe;--water:#bcd6e6;--line:#8fb2c8;--ship:#52687a;--sunk:#2c3a46;--hit:#d9482f;--acc:#0e5a85;--accfg:#fff;--muted:#56707f;--prev:#4a9d6b;--bad:#c24a4a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0a1620;--fg:#e3eef5;--panel:#112331;--water:#16384e;--line:#2a5670;--ship:#8ea5b5;--sunk:#4b5b68;--hit:#ef5a3f;--acc:#4fb0e0;--accfg:#06202f;--muted:#8aa5b5;--prev:#4fbf80;--bad:#e07070}}
+:root[data-theme=dark]{--bg:#0a1620;--fg:#e3eef5;--panel:#112331;--water:#16384e;--line:#2a5670;--ship:#8ea5b5;--sunk:#4b5b68;--hit:#ef5a3f;--acc:#4fb0e0;--accfg:#06202f;--muted:#8aa5b5;--prev:#4fbf80;--bad:#e07070}
+*{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 Georgia,"Times New Roman",serif;min-height:100vh}
+#app{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:0 0 12px;letter-spacing:.02em}
+h2{font-size:1.25rem;margin:0 0 4px}
+p{margin:0 0 12px;color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.c{text-align:center;padding:48px 16px}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+button{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+button:hover:not(:disabled){border-color:var(--acc)}
+button:disabled{opacity:.45;cursor:default}
+button.pri{background:var(--acc);color:var(--accfg);border-color:var(--acc);font-weight:bold}
+button:focus-visible,.cell:focus-visible{outline:3px solid var(--acc);outline-offset:1px}
+.boards{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.bwrap{flex:1 1 300px;min-width:0}
+.bwrap h3{margin:0 0 6px;font-size:1rem}
+.grid{--s:min(calc((100vw - 56px)/10),40px);display:grid;grid-template-columns:repeat(10,var(--s));grid-auto-rows:var(--s);gap:2px;background:var(--line);padding:2px;border-radius:6px;width:max-content;max-width:100%}
+.small .grid{--s:min(calc((100vw - 56px)/10),28px)}
+.cell{background:var(--water);position:relative;display:block}
+.cell.ship{background:var(--ship)}
+.cell.sunk{background:var(--sunk)}
+.cell.prev{background:var(--prev)}
+.cell.bad{background:var(--bad)}
+.cell.h::after{content:"";position:absolute;inset:22%;border-radius:50%;background:var(--hit)}
+.cell.m::after{content:"";position:absolute;inset:38%;border-radius:50%;background:var(--panel);opacity:.8}
+.target .cell:not(.h):not(.m){cursor:crosshair}
+.target .cell:not(.h):not(.m):hover{background:var(--line)}
+.msg{font-weight:bold;min-height:1.5em;margin:0 0 10px;color:var(--fg)}
+.msg.hit{color:var(--hit)}
+.fleet{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;padding:0;list-style:none;font-size:.9rem}
+.fleet li{border:1px solid var(--line);border-radius:4px;padding:2px 8px}
+.fleet li.x{text-decoration:line-through;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.cell{transition:background .12s}.cover{animation:fi .25s}@keyframes fi{from{opacity:0}}}
+:root{--p0:#2f86c0;--p1:#c8651b}
+.big{font-size:1.2rem;padding:14px 32px}
+.menu{text-align:center;padding-top:24px}
+.menu h1{font-size:2.6rem;margin:8px 0}
+.menu .card{max-width:560px;margin:16px auto}
+ol.rules{margin:8px 0 0;padding-left:1.3em;color:var(--fg)}
+ol.rules li{margin-bottom:10px}
+#help{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:14px;width:56px;height:56px;border-radius:50%;padding:0;font:bold 30px/1 Georgia,serif;background:var(--acc);color:var(--accfg);border:none;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:20}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:30}
+#modal.on{display:flex}
+#modal .card{max-width:520px;width:100%;max-height:85vh;overflow:auto;margin:0}
+.cover{min-height:calc(100vh - 32px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.cover .badge{width:112px;height:112px;border-radius:50%;background:var(--pc);color:#fff;font:bold 4rem/112px Georgia,serif;margin-bottom:14px}
+.cover h2{font-size:2.2rem;margin:0 0 6px}
+.cover button{background:var(--pc);border-color:var(--pc);color:#fff;font-weight:bold;margin-top:12px}
+.cover button:hover:not(:disabled){border-color:var(--pc);filter:brightness(1.1)}
+.warn{background:#a63030;color:#fff;border-radius:6px;padding:8px 12px;margin:0 0 10px;font-weight:bold}
+.hint{margin:0 0 8px}
+#rs{position:fixed;top:calc(18px + env(safe-area-inset-top,0px));right:78px;height:44px;padding:0 16px;font-weight:bold;z-index:20;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+body[data-ph=menu] #rs{display:none}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:0 0 8px}
+.bar i{display:block;height:100%;width:100%;background:var(--acc);transform-origin:left;animation:drain 3s linear forwards}
+@keyframes drain{to{transform:scaleX(0)}}
+</style></head>
+<body><button id="rs">Restart</button><button id="help" aria-label="Show rules" title="Rules">?</button>
+<div id="modal" role="dialog" aria-modal="true" aria-label="Rules"><div class="card"><h2>How to play</h2><div id="rl"></div><div class="row"><button class="pri" id="xr">Got it</button></div></div></div>
+<div id="app"></div>
+<script>
+const SH=[["Carrier",5],["Battleship",4],["Cruiser",3],["Submarine",3],["Destroyer",2]];
+let G,ph,cur,horiz=true,hov=-1,msg='',msgHit=false,locked=false,nxt,win=0,warnMsg='',turnT,lockAt=0;
+const $=id=>document.getElementById(id);
+function init(skip){G=[0,1].map(()=>({ships:[],shots:{}}));cur=0;ph=skip?'setup':'menu';horiz=true;locked=false;msg='';msgHit=false;win=0;hov=-1;warnMsg='';clearTimeout(turnT);render()}
+const occ=p=>{const m={};G[p].ships.forEach((s,i)=>s.cells.forEach(c=>m[c]=i));return m};
+function cellsFor(i,n){const r=i/10|0,c=i%10,a=[];for(let k=0;k<n;k++){const rr=horiz?r:r+k,cc=horiz?c+k:c;if(rr>9||cc>9)return null;a.push(rr*10+cc)}return a}
+const free=(p,a)=>a&&a.every(c=>!(c in occ(p)));
+const sunk=(s,sh)=>s.cells.every(c=>sh[c]=='h');
+function randomize(p){G[p].ships=[];const sv=horiz;SH.forEach(([name,n])=>{let a;do{horiz=Math.random()<.5;a=cellsFor(Math.random()*100|0,n)}while(!free(p,a));G[p].ships.push({name,cells:a})});horiz=sv}
+const cell=(i,cls,extra='')=>`<div class="cell ${cls}" data-i="${i}" ${extra}></div>`;
+function paintSetup(){
+  const P=G[cur],n=P.ships.length,o=occ(cur);
+  const pv=n<5&&hov>=0?cellsFor(hov,SH[n][1]):null,ok=pv&&free(cur,pv);
+  let h='';
+  for(let i=0;i<100;i++){let c=i in o?'ship':'';
+    if(pv){const part=pv.includes(i);if(part)c=ok?'prev':'bad'}
+    else if(n<5&&hov>=0&&i==hov)c='bad';
+    h+=cell(i,c)}
+  $('bd').innerHTML=h;
+}
+function render(){
+  const A=$('app');document.body.dataset.ph=ph;
+  if(ph=='menu'){
+    A.innerHTML=`<div class="menu"><h1>Battleship</h1><p>Two players, one screen. Sink the enemy fleet before they sink yours.</p><div class="card" style="text-align:left"><h2>Rules</h2>${RULES}</div><button class="pri big" id="st">Start game</button></div>`;
+    $('st').onclick=()=>{ph='setup';render()};return}
+  if(ph=='cover'){
+    A.innerHTML=`<div class="cover" style="--pc:var(--p${cur})"><div class="badge">${cur+1}</div><h2>Player ${cur+1}</h2><p>Pass the device over.<br>Player ${2-cur}, look away.</p><button class="big" id="go">I’m ready</button></div>`;
+    const gb=$('go');gb.disabled=true;setTimeout(()=>{gb.disabled=false;gb.focus()},700);gb.onclick=nxt;return}
+  if(ph=='setup'){
+    const n=G[cur].ships.length,done=n==5;
+    A.innerHTML=`<h1>Battleship</h1><div class="card"><h2>Player ${cur+1}: place your fleet</h2>
+    <p>${done?'Fleet placed. Undo or randomize to change it.':`Placing the <b>${SH[n][0]}</b> (${SH[n][1]} cells). Click the board to set its first cell.`}</p>
+    ${wh()}<div class="grid" id="bd"></div>
+    <div class="row"><button id="rot">Direction: ${horiz?'across':'down'} (R)</button><button id="rnd">Randomize</button><button id="und" ${n?'':'disabled'}>Undo last ship</button><button class="pri" id="dn" ${done?'':'disabled'}>${cur?'Start battle':'Done, pass to Player 2'}</button></div></div>`;
+    paintSetup();
+    const bd=$('bd');
+    bd.onmouseover=e=>{const i=e.target.dataset.i;if(i!==undefined&&+i!==hov){hov=+i;paintSetup()}};
+    bd.onmouseleave=()=>{hov=-1;paintSetup()};
+    bd.onclick=e=>{const i=e.target.dataset.i;if(i===undefined)return;if(done)return warn('All five ships are placed. Undo one to change it, or press the button below to continue.');
+      const a=cellsFor(+i,SH[n][1]);if(!free(cur,a))return warn('Illegal placement: ships can’t overlap or go off the board.');
+      G[cur].ships.push({name:SH[n][0],cells:a});warnMsg='';render()};
+    $('rot').onclick=()=>{horiz=!horiz;render()};
+    $('rnd').onclick=()=>{randomize(cur);render()};
+    $('und').onclick=()=>{G[cur].ships.pop();render()};
+    $('dn').onclick=()=>{hov=-1;if(cur==0){cur=1;ph='cover';nxt=()=>{ph='setup';render()}}else{cur=0;ph='cover';nxt=()=>{ph='battle';render()}}render()};
+    return}
+  if(ph=='battle'||ph=='over'){
+    const me=G[cur],en=G[1-cur],eo=occ(1-cur),mo=occ(cur);
+    let eh='',mh='';
+    for(let i=0;i<100;i++){
+      let c=me.shots[i]||'';
+      if(ph=='over'&&i in eo&&!c)c='ship';
+      if(i in eo&&sunk(en.ships[eo[i]],me.shots))c+=' sunk';
+      eh+=cell(i,c);
+      let d=i in mo?'ship ':'';d+=en.shots[i]||'';mh+=cell(i,d)}
+    const fl=en.ships.map(s=>`<li class="${sunk(s,me.shots)?'x':''}">${s.name}</li>`).join('');
+    const over=ph=='over';
+    A.innerHTML=`<h1>Battleship</h1><div class="card"><h2>${over?`Player ${win+1} wins`:`Player ${cur+1}'s turn`}</h2>
+    ${over?'':'<p class="hint">Goal: sink all 5 enemy ships. Click one square in Enemy waters to fire. Your turn passes on its own after 3 seconds.</p>'}<p class="msg ${msgHit?'hit':''}">${msg||(over?'':'Your move.')}</p>${wh()}${locked&&!over?`<div class="bar" aria-hidden="true"><i style="animation-delay:-${Date.now()-lockAt}ms"></i></div><p class="hint">Passing to Player ${2-cur} automatically. Click Pass now to skip the wait.</p>`:''}
+    <div class="boards"><div class="bwrap"><h3>Enemy waters</h3><div class="${locked||over?'':'target'}"><div class="grid" id="eb">${eh}</div></div><ul class="fleet">${fl}</ul></div>
+    <div class="bwrap small"><h3>Your fleet</h3><div class="grid" id="mb">${mh}</div></div></div>
+    <div class="row">${over?'<button class="pri" id="again">Play again</button>':`<button class="pri" id="end">${locked?'Pass now':'End turn'}</button>`}</div></div>`;
+    if(over){$('again').onclick=()=>init(1);return}
+    $('eb').onclick=e=>{const i=e.target.dataset.i;if(i===undefined)return;
+      if(me.shots[i])return warn(`You already fired at ${sqn(+i)}. Pick a different square.`);
+      if(locked)return warn('Your turn is over. The device is about to pass to the other player.');
+      fire(+i)};
+    $('mb').onclick=e=>{if(e.target.dataset.i!==undefined)warn('That is your own fleet. Fire at Enemy waters instead.')};
+    $('end').onclick=()=>{if(!locked)return warn('Fire a shot before you end your turn. Skipping is not allowed.');clearTimeout(turnT);cur=1-cur;warnMsg='';locked=false;msg='';msgHit=false;ph='cover';nxt=()=>{ph='battle';render()};render()};
+  }
+}
+let AC;
+function boom(big){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state=='suspended')AC.resume();
+    const t=AC.currentTime,d=big?1.6:0.9;
+    const buf=AC.createBuffer(1,AC.sampleRate*d,AC.sampleRate),a=buf.getChannelData(0);
+    for(let k=0;k<a.length;k++)a[k]=Math.random()*2-1;
+    const n=AC.createBufferSource();n.buffer=buf;
+    const lp=AC.createBiquadFilter();lp.type='lowpass';
+    lp.frequency.setValueAtTime(big?2200:1600,t);lp.frequency.exponentialRampToValueAtTime(70,t+d);
+    const g=AC.createGain();g.gain.setValueAtTime(big?1:.8,t);g.gain.exponentialRampToValueAtTime(.001,t+d);
+    n.connect(lp);lp.connect(g);g.connect(AC.destination);n.start(t);
+    const o=AC.createOscillator();o.type='sine';
+    o.frequency.setValueAtTime(big?120:90,t);o.frequency.exponentialRampToValueAtTime(30,t+d*.6);
+    const og=AC.createGain();og.gain.setValueAtTime(.9,t);og.gain.exponentialRampToValueAtTime(.001,t+d*.6);
+    o.connect(og);og.connect(AC.destination);o.start(t);o.stop(t+d);
+  }catch(e){}
+}
+function fire(i){
+  const me=G[cur],en=G[1-cur],eo=occ(1-cur),hit=i in eo;
+  me.shots[i]=hit?'h':'m';warnMsg='';
+  const r=i/10|0,c=i%10,sq=String.fromCharCode(65+c)+(r+1);
+  if(hit){const s=en.ships[eo[i]];boom(sunk(s,me.shots));
+    if(en.ships.every(x=>sunk(x,me.shots))){ph='over';win=cur;msg=`${sq}: hit. You sank the ${s.name}, the last ship.`;msgHit=true;render();return}
+    msg=sunk(s,me.shots)?`${sq}: hit. You sank their ${s.name}.`:`${sq}: hit.`;msgHit=true}
+  else{msg=`${sq}: miss.`;msgHit=false}
+  locked=true;lockAt=Date.now();clearTimeout(turnT);turnT=setTimeout(()=>{const b=$('end');if(b&&locked&&ph=='battle')b.click()},3000);render();
+}
+const RULES=`<ol class="rules"><li><b>Place your fleet.</b> Each player secretly places 5 ships on a 10×10 grid: Carrier (5), Battleship (4), Cruiser (3), Submarine (3) and Destroyer (2). Ships go across or down and can’t overlap.</li><li><b>Take turns firing.</b> On your turn, click one square in Enemy waters. You get one shot per turn, even after a hit.</li><li><b>Read the result.</b> A red dot is a hit and a white dot is a miss. A ship is sunk when every one of its squares has been hit.</li><li><b>Pass the device.</b> After you fire, the turn passes by itself after 3 seconds, or click Pass now to skip the wait. Hand the device over when the cover screen appears. It hides the boards until the next player is ready.</li><li><b>Win.</b> The first player to sink all five enemy ships wins.</li></ol>`;
+function showRules(on){$('modal').classList.toggle('on',on);if(on)$('xr').focus()}
+$('rl').innerHTML=RULES;
+$('help').onclick=()=>showRules(true);
+const wh=()=>warnMsg?`<p class="warn" role="alert">${warnMsg}</p>`:'';
+const sqn=i=>String.fromCharCode(65+i%10)+((i/10|0)+1);
+function warn(t){warnMsg=t;render()}
+let rsT;
+$('rs').onclick=()=>{const b=$('rs');if(b.dataset.c){clearTimeout(rsT);delete b.dataset.c;b.textContent='Restart';init(1)}else{b.dataset.c=1;b.textContent='Click to confirm';rsT=setTimeout(()=>{delete b.dataset.c;b.textContent='Restart'},3000)}};
+$('xr').onclick=()=>showRules(false);
+$('modal').onclick=e=>{if(e.target.id=='modal')showRules(false)};
+document.addEventListener('keydown',e=>{if(e.key=='Escape')showRules(false);else if((e.key=='r'||e.key=='R')&&ph=='setup'){horiz=!horiz;render()}});
+init();
+</script></body></html>
