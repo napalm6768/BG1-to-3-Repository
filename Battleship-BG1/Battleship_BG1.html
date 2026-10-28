@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Battleship</title>
+<style>
+:root{--bg:#e9eff3;--fg:#10222f;--panel:#fbfdfe;--water:#bcd6e6;--line:#8fb2c8;--ship:#52687a;--sunk:#2c3a46;--hit:#d9482f;--acc:#0e5a85;--accfg:#fff;--muted:#56707f;--prev:#4a9d6b;--bad:#c24a4a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0a1620;--fg:#e3eef5;--panel:#112331;--water:#16384e;--line:#2a5670;--ship:#8ea5b5;--sunk:#4b5b68;--hit:#ef5a3f;--acc:#4fb0e0;--accfg:#06202f;--muted:#8aa5b5;--prev:#4fbf80;--bad:#e07070}}
+:root[data-theme=dark]{--bg:#0a1620;--fg:#e3eef5;--panel:#112331;--water:#16384e;--line:#2a5670;--ship:#8ea5b5;--sunk:#4b5b68;--hit:#ef5a3f;--acc:#4fb0e0;--accfg:#06202f;--muted:#8aa5b5;--prev:#4fbf80;--bad:#e07070}
+*{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 Georgia,"Times New Roman",serif;min-height:100vh}
+#app{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:0 0 12px;letter-spacing:.02em}
+h2{font-size:1.25rem;margin:0 0 4px}
+p{margin:0 0 12px;color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.c{text-align:center;padding:48px 16px}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+button{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+button:hover:not(:disabled){border-color:var(--acc)}
+button:disabled{opacity:.45;cursor:default}
+button.pri{background:var(--acc);color:var(--accfg);border-color:var(--acc);font-weight:bold}
+button:focus-visible,.cell:focus-visible{outline:3px solid var(--acc);outline-offset:1px}
+.boards{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.bwrap{flex:1 1 300px;min-width:0}
+.bwrap h3{margin:0 0 6px;font-size:1rem}
+.grid{--s:min(calc((100vw - 56px)/10),40px);display:grid;grid-template-columns:repeat(10,var(--s));grid-auto-rows:var(--s);gap:2px;background:var(--line);padding:2px;border-radius:6px;width:max-content;max-width:100%}
+.small .grid{--s:min(calc((100vw - 56px)/10),28px)}
+.cell{background:var(--water);position:relative;display:block}
+.cell.ship{background:var(--ship)}
+.cell.sunk{background:var(--sunk)}
+.cell.prev{background:var(--prev)}
+.cell.bad{background:var(--bad)}
+.cell.h::after{content:"";position:absolute;inset:22%;border-radius:50%;background:var(--hit)}
+.cell.m::after{content:"";position:absolute;inset:38%;border-radius:50%;background:var(--panel);opacity:.8}
+.target .cell:not(.h):not(.m){cursor:crosshair}
+.target .cell:not(.h):not(.m):hover{background:var(--line)}
+.msg{font-weight:bold;min-height:1.5em;margin:0 0 10px;color:var(--fg)}
+.msg.hit{color:var(--hit)}
+.fleet{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;padding:0;list-style:none;font-size:.9rem}
+.fleet li{border:1px solid var(--line);border-radius:4px;padding:2px 8px}
+.fleet li.x{text-decoration:line-through;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.cell{transition:background .12s}}
+</style></head>
+<body><div id="app"></div>
+<script>
+const SH=[["Carrier",5],["Battleship",4],["Cruiser",3],["Submarine",3],["Destroyer",2]];
+let G,ph,cur,horiz=true,hov=-1,msg='',msgHit=false,locked=false,nxt,win=0;
+const $=id=>document.getElementById(id);
+function init(){G=[0,1].map(()=>({ships:[],shots:{}}));cur=0;ph='setup';horiz=true;locked=false;msg='';render()}
+const occ=p=>{const m={};G[p].ships.forEach((s,i)=>s.cells.forEach(c=>m[c]=i));return m};
+function cellsFor(i,n){const r=i/10|0,c=i%10,a=[];for(let k=0;k<n;k++){const rr=horiz?r:r+k,cc=horiz?c+k:c;if(rr>9||cc>9)return null;a.push(rr*10+cc)}return a}
+const free=(p,a)=>a&&a.every(c=>!(c in occ(p)));
+const sunk=(s,sh)=>s.cells.every(c=>sh[c]=='h');
+function randomize(p){G[p].ships=[];const sv=horiz;SH.forEach(([name,n])=>{let a;do{horiz=Math.random()<.5;a=cellsFor(Math.random()*100|0,n)}while(!free(p,a));G[p].ships.push({name,cells:a})});horiz=sv}
+const cell=(i,cls,extra='')=>`<div class="cell ${cls}" data-i="${i}" ${extra}></div>`;
+function paintSetup(){
+  const P=G[cur],n=P.ships.length,o=occ(cur);
+  const pv=n<5&&hov>=0?cellsFor(hov,SH[n][1]):null,ok=pv&&free(cur,pv);
+  let h='';
+  for(let i=0;i<100;i++){let c=i in o?'ship':'';
+    if(pv){const part=pv.includes(i);if(part)c=ok?'prev':'bad'}
+    else if(n<5&&hov>=0&&i==hov)c='bad';
+    h+=cell(i,c)}
+  $('bd').innerHTML=h;
+}
+function render(){
+  const A=$('app');
+  if(ph=='cover'){
+    A.innerHTML=`<h1>Battleship</h1><div class="card c"><h2>Pass the device to Player ${cur+1}</h2><p>Player ${2-cur} should look away before you continue.</p><button class="pri" id="go">I'm Player ${cur+1}, ready</button></div>`;
+    $('go').onclick=nxt;$('go').focus();return}
+  if(ph=='setup'){
+    const n=G[cur].ships.length,done=n==5;
+    A.innerHTML=`<h1>Battleship</h1><div class="card"><h2>Player ${cur+1}: place your fleet</h2>
+    <p>${done?'Fleet placed. Undo or randomize to change it.':`Placing the <b>${SH[n][0]}</b> (${SH[n][1]} cells). Click the board to set its first cell.`}</p>
+    <div class="grid" id="bd"></div>
+    <div class="row"><button id="rot">Direction: ${horiz?'across':'down'} (R)</button><button id="rnd">Randomize</button><button id="und" ${n?'':'disabled'}>Undo last ship</button><button class="pri" id="dn" ${done?'':'disabled'}>${cur?'Start battle':'Done, pass to Player 2'}</button></div></div>`;
+    paintSetup();
+    const bd=$('bd');
+    bd.onmouseover=e=>{const i=e.target.dataset.i;if(i!==undefined&&+i!==hov){hov=+i;paintSetup()}};
+    bd.onmouseleave=()=>{hov=-1;paintSetup()};
+    bd.onclick=e=>{const i=e.target.dataset.i;if(i===undefined||done)return;
+      const a=cellsFor(+i,SH[n][1]);if(!free(cur,a))return;
+      G[cur].ships.push({name:SH[n][0],cells:a});render()};
+    $('rot').onclick=()=>{horiz=!horiz;render()};
+    $('rnd').onclick=()=>{randomize(cur);render()};
+    $('und').onclick=()=>{G[cur].ships.pop();render()};
+    $('dn').onclick=()=>{hov=-1;if(cur==0){cur=1;ph='cover';nxt=()=>{ph='setup';render()}}else{cur=0;ph='cover';nxt=()=>{ph='battle';render()}}render()};
+    return}
+  if(ph=='battle'||ph=='over'){
+    const me=G[cur],en=G[1-cur],eo=occ(1-cur),mo=occ(cur);
+    let eh='',mh='';
+    for(let i=0;i<100;i++){
+      let c=me.shots[i]||'';
+      if(ph=='over'&&i in eo&&!c)c='ship';
+      if(i in eo&&sunk(en.ships[eo[i]],me.shots))c+=' sunk';
+      eh+=cell(i,c);
+      let d=i in mo?'ship ':'';d+=en.shots[i]||'';mh+=cell(i,d)}
+    const fl=en.ships.map(s=>`<li class="${sunk(s,me.shots)?'x':''}">${s.name}</li>`).join('');
+    const over=ph=='over';
+    A.innerHTML=`<h1>Battleship</h1><div class="card"><h2>${over?`Player ${win+1} wins`:`Player ${cur+1}'s turn`}</h2>
+    <p class="msg ${msgHit?'hit':''}">${msg||(over?'':'Pick a square in enemy waters to fire.')}</p>
+    <div class="boards"><div class="bwrap"><h3>Enemy waters</h3><div class="${locked||over?'':'target'}"><div class="grid" id="eb">${eh}</div></div><ul class="fleet">${fl}</ul></div>
+    <div class="bwrap small"><h3>Your fleet</h3><div class="grid">${mh}</div></div></div>
+    <div class="row">${over?'<button class="pri" id="again">Play again</button>':`<button class="pri" id="end" ${locked?'':'disabled'}>End turn</button>`}</div></div>`;
+    if(over){$('again').onclick=init;return}
+    $('eb').onclick=e=>{const i=e.target.dataset.i;if(i===undefined||locked||me.shots[i])return;fire(+i)};
+    $('end').onclick=()=>{cur=1-cur;locked=false;msg='';msgHit=false;ph='cover';nxt=()=>{ph='battle';render()};render()};
+  }
+}
+function fire(i){
+  const me=G[cur],en=G[1-cur],eo=occ(1-cur),hit=i in eo;
+  me.shots[i]=hit?'h':'m';
+  const r=i/10|0,c=i%10,sq=String.fromCharCode(65+c)+(r+1);
+  if(hit){const s=en.ships[eo[i]];
+    if(en.ships.every(x=>sunk(x,me.shots))){ph='over';win=cur;msg=`${sq}: hit. You sank the ${s.name}, the last ship.`;msgHit=true;render();return}
+    msg=sunk(s,me.shots)?`${sq}: hit. You sank their ${s.name}.`:`${sq}: hit.`;msgHit=true}
+  else{msg=`${sq}: miss.`;msgHit=false}
+  locked=true;render();
+}
+document.addEventListener('keydown',e=>{if((e.key=='r'||e.key=='R')&&ph=='setup'){horiz=!horiz;render()}});
+init();
+</script></body></html>
